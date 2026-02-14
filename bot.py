@@ -15,8 +15,7 @@ from psycopg2.extras import RealDictCursor
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, WebAppInfo, BufferedInputFile
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import Message, WebAppInfo, BufferedInputFile, FSInputFile, CallbackQuery
 
 load_dotenv()
 
@@ -30,6 +29,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://godvargo.github.io/upscale-video-webapp/")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 DATABASE_URL = os.getenv("DATABASE_URL")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+CHANNEL_URL = os.getenv("CHANNEL_URL")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -129,9 +130,59 @@ def export_users():
     return rows
 
 
+async def check_subscription(user_id: int) -> bool:
+    """Проверка подписки пользователя на канал"""
+    if not CHANNEL_ID:
+        logger.warning("CHANNEL_ID не установлен, проверка подписки пропущена")
+        return True
+        
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        return member.status in ["creator", "administrator", "member", "restricted"]
+    except Exception as e:
+        logger.error(f"Ошибка проверки подписки для {user_id}: {e}")
+        # Если обязательная подписка - лучше вернуть False, чтобы не пускать без проверки
+        # Но нужно убедиться, что бот админ
+        return False
+
+
+@dp.callback_query(F.data == "check_subscription")
+async def callback_check_subscription(callback: CallbackQuery):
+    """Обработчик кнопки проверки подписки"""
+    is_subscribed = await check_subscription(callback.from_user.id)
+    
+    if is_subscribed:
+        await callback.message.delete()
+        await cmd_start(callback.message)
+    else:
+        await callback.answer("❌ Вы пока не подписались на канал!", show_alert=True)
+
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     """Обработчик команды /start"""
+    # Проверка подписки
+    if not await check_subscription(message.from_user.id):
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📢 Подписаться", url=CHANNEL_URL or "https://t.me/")
+        builder.button(text="✅ Проверить подписку", callback_data="check_subscription")
+        builder.adjust(1)
+        
+        caption = (
+            "👋 Привет!\n\n"
+            "Для использования бота необходимо подписаться на наш канал:\n"
+            f"<b>AI Laboratory</b>\n\n"
+            "После подписки нажмите кнопку «Проверить подписку»."
+        )
+        
+        photo_path = "public/subscribe_banner.jpg"
+        if os.path.exists(photo_path):
+            photo = FSInputFile(photo_path)
+            await message.answer_photo(photo, caption=caption, reply_markup=builder.as_markup(), parse_mode="HTML")
+        else:
+            await message.answer(caption, reply_markup=builder.as_markup(), parse_mode="HTML")
+        return
+
     add_user(
         message.from_user.id,
         message.from_user.username,
@@ -272,9 +323,28 @@ async def handle_video(message: Message):
     )
 
 
+async def check_bot_admin_status():
+    """Проверка прав админа при запуске"""
+    if not CHANNEL_ID:
+        return
+
+    try:
+        bot_user = await bot.get_me()
+        member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=bot_user.id)
+        if member.status != "administrator":
+            logger.critical(f"⚠️ БОТ НЕ ЯВЛЯЕТСЯ АДМИНИСТРАТОРОМ В КАНАЛЕ {CHANNEL_ID}! Проверка подписки работать не будет.")
+        else:
+            logger.info(f"✅ Бот успешно проверил права админа в канале {CHANNEL_ID}")
+    except Exception as e:
+        logger.critical(f"⚠️ Ошибка проверки прав бота в канале {CHANNEL_ID}: {e}. Убедитесь, что ID правильный и бот добавлен в канал.")
+
 async def main():
     """Запуск бота"""
     init_db()
+    
+    # Проверка прав перед запуском
+    await check_bot_admin_status()
+    
     logger.info("🚀 Запуск Upscaler Video Bot...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
