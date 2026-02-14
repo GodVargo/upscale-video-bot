@@ -16,6 +16,7 @@ from psycopg2.extras import RealDictCursor
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 from aiogram.types import Message, WebAppInfo, BufferedInputFile, FSInputFile, CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 load_dotenv()
 
@@ -350,15 +351,42 @@ async def check_bot_admin_status():
 
 async def main():
     """Запуск бота"""
-    init_db()
+    logger.info("🚀 Starting Upscaler Video Bot...")
     
-    # Проверка прав перед запуском
-    await check_bot_admin_status()
-    
-    logger.info("🚀 Запуск Upscaler Video Bot...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    # 1. Проверяем переменные
+    if not BOT_TOKEN:
+        logger.critical("❌ ERROR: BOT_TOKEN не установлен!")
+        return
+    if not DATABASE_URL:
+        logger.critical("❌ ERROR: DATABASE_URL не установлен! Проверьте настройки Railway.")
+        return
 
+    # 2. Пробуем подключиться к БД
+    try:
+        init_db()
+        logger.info("✅ Database connected successfully")
+    except Exception as e:
+        logger.critical(f"❌ DATABASE ERROR: {e}")
+        return # Без базы работать нельзя
+    
+    # 3. Проверка прав
+    try:
+        await check_bot_admin_status()
+    except Exception as e:
+         logger.error(f"⚠️ Admin check failed: {e}")
+    
+    # 4. Запуск поллинга
+    try:
+        logger.info("✅ Starting polling...")
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot)
+    except Exception as e:
+        logger.critical(f"❌ POLLING ERROR: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.critical(f"FATAL ERROR: {e}")
