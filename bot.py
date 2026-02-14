@@ -130,39 +130,45 @@ def export_users():
     return rows
 
 
-async def check_subscription(user_id: int) -> bool:
-    """Проверка подписки пользователя на канал"""
+async def check_subscription(user_id: int) -> tuple[bool, str]:
+    """Проверка подписки. Возвращает (True/False, ошибка)."""
     if not CHANNEL_ID:
-        logger.warning("CHANNEL_ID не установлен, проверка подписки пропущена")
-        return True
+        logger.warning("CHANNEL_ID не установлен")
+        return True, ""
         
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        return member.status in ["creator", "administrator", "member", "restricted"]
+        is_sub = member.status in ["creator", "administrator", "member", "restricted"]
+        return is_sub, ""
     except Exception as e:
         logger.error(f"Ошибка проверки подписки для {user_id}: {e}")
-        # Если обязательная подписка - лучше вернуть False, чтобы не пускать без проверки
-        # Но нужно убедиться, что бот админ
-        return False
+        return False, str(e)
 
 
 @dp.callback_query(F.data == "check_subscription")
 async def callback_check_subscription(callback: CallbackQuery):
     """Обработчик кнопки проверки подписки"""
-    is_subscribed = await check_subscription(callback.from_user.id)
+    is_subscribed, error = await check_subscription(callback.from_user.id)
     
     if is_subscribed:
         await callback.message.delete()
         await cmd_start(callback.message)
     else:
-        await callback.answer("❌ Вы пока не подписались на канал!", show_alert=True)
+        text = "❌ Вы пока не подписались на канал!"
+        if error:
+            # Показываем ошибку конфигурации, чтобы пользователь понял в чем дело
+            text += f"\n\n⚙️ Ошибка проверки: {error}\n(Сделайте бота администратором в канале!)"
+            
+        await callback.answer(text, show_alert=True)
 
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     """Обработчик команды /start"""
     # Проверка подписки
-    if not await check_subscription(message.from_user.id):
+    is_subscribed, error = await check_subscription(message.from_user.id)
+    
+    if not is_subscribed:
         builder = InlineKeyboardBuilder()
         builder.button(text="📢 Подписаться", url=CHANNEL_URL or "https://t.me/")
         builder.button(text="✅ Проверить подписку", callback_data="check_subscription")
@@ -174,6 +180,10 @@ async def cmd_start(message: Message):
             f"<b>AI Laboratory</b>\n\n"
             "После подписки нажмите кнопку «Проверить подписку»."
         )
+        
+        if error:
+             caption += f"\n\n⚠️ <b>System Error:</b> {error}"
+
         
         photo_path = "public/subscribe_banner.jpg"
         if os.path.exists(photo_path):
