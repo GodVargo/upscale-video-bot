@@ -1,0 +1,9 @@
+[project]
+name = "upscale-video-bot"
+version = "0.1.0"
+description = "Upscale Video Telegram Bot"
+dependencies = [
+    "aiogram==3.17.0",
+    "python-dotenv",
+    "psycopg2-binary"
+]
