@@ -65,11 +65,14 @@ def check_subscription(user_id):
         return status in ["creator", "administrator", "member", "restricted"]
     return True # В случае ошибки (например, бот не админ) пропускаем
 
-def send_subscription_prompt(chat_id):
-    webapp_url = WEBAPP_URL or "" 
-    # Формируем URL баннера динамически, если он не задан, используем заглушку или пропускаем фото
-    # Для Vercel public файлы доступны по root url
+
+def send_subscription_prompt(chat_id, host=""):
+    # Используем WEBAPP_URL из env или собираем из host
+    base_url = WEBAPP_URL or f"https://{host}"
     
+    # URL картинки
+    photo_url = f"{base_url}/subscribe_banner.jpg"
+
     reply_markup = {
         "inline_keyboard": [
             [{"text": "📢 Подписаться", "url": CHANNEL_URL or "https://t.me/"}],
@@ -84,14 +87,12 @@ def send_subscription_prompt(chat_id):
         "После подписки нажмите кнопку «Проверить подписку»."
     )
     
-    # Если есть URL веб-приложения, пробуем использовать его для картинки
-    photo_touse = BANNER_URL 
-    
-    # Если URL картинки нет или он некорректный, шлем просто текст (fallback)
-    # Но попробуем отправить фото
-    if photo_touse:
-         send_photo(chat_id, photo_touse, caption, reply_markup)
-    else:
+    print(f"Sending prompt with photo: {photo_url}")
+    # Пробуем отправить фото, если не получится - текст
+    try:
+         send_photo(chat_id, photo_url, caption, reply_markup)
+    except Exception as e:
+         print(f"Failed to send photo: {e}")
          send_message(chat_id, caption, reply_markup)
 
 
@@ -148,7 +149,7 @@ class handler(BaseHTTPRequestHandler):
                 if check_subscription(user_id):
                     send_welcome(chat_id, host)
                 else:
-                    send_subscription_prompt(chat_id)
+                    send_subscription_prompt(chat_id, host)
                     
             elif text == "/help":
                 send_message(
