@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Upscaler Video</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .upload-zone {
+            border: 2px dashed #6c5ce7;
+            border-radius: 20px;
+            padding: 50px 30px;
+            cursor: pointer;
+            background: rgba(108, 92, 231, 0.1);
+            transition: all 0.3s;
+        }
+
+        .upload-zone:hover {
+            background: rgba(108, 92, 231, 0.2);
+            transform: scale(1.02);
+            border-color: #a29bfe;
+        }
+
+        .upload-icon {
+            font-size: 60px;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Upscaler Video</h1>
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">📹</div>
+            <div class="upload-text">Нажмите для загрузки видео</div>
+        </div>
+    </div>
+    <script>
+        const tg = window.Telegram?.WebApp;
+        if (tg) { tg.ready(); tg.expand(); }
+        document.getElementById('uploadZone').addEventListener('click', function () {
+            if (tg) {
+                tg.openLink('https://free.upscaler.video/');
+            } else {
+                window.open('https://free.upscaler.video/', '_blank');
+            }
+        });
+    </script>
+</body>
+
+</html>
